@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <tchar.h>
 #include <vector>
+#include "resource.h"
 
 #pragma comment(linker,"\"/manifestdependency:type='win32' \
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
@@ -94,10 +95,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	WNDCLASS wc = { };
 
+	HICON hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON1));
+
 	wc.lpfnWndProc = WindowProc;
 	wc.hInstance = hInstance;
 	wc.lpszClassName = CLASS_NAME;
 	wc.style = CS_HREDRAW | CS_VREDRAW; // Window redraw after sizing
+	wc.hIcon = hIcon;
 
 	RegisterClass(&wc);
 
