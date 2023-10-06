@@ -7,6 +7,9 @@
 #include <vector>
 #include "resource.h"
 #include "shape.cpp"
+#include <gdiplus.h>
+using namespace Gdiplus;
+#pragma comment (lib,"Gdiplus.lib")
 
 #pragma comment(linker,"\"/manifestdependency:type='win32' \
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
@@ -26,8 +29,7 @@ int selectedShapeIndex = -1;
 bool isCornerSelected = false;
 bool isLtCornerSelected = false;
 int deltaWay = 20;
-HBRUSH brush = CreateSolidBrush(RGB(192, 0, 0));
-HBRUSH original = CreateSolidBrush(RGB(192, 50, 0));
+Pen blackPen(Color(255, 0, 0, 0), 3);
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -37,6 +39,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	const wchar_t CLASS_NAME[] = L"Sample Window Class";
 
 	WNDCLASS wc = { };
+	GdiplusStartupInput gdiplusStartupInput;
+	ULONG_PTR           gdiplusToken;
+
+	// Initialize GDI+.
+	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
 
 	HICON hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON1));
 
@@ -81,21 +88,53 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		DispatchMessage(&msg);
 	}
 
+	GdiplusShutdown(gdiplusToken);
+
 	return 0;
 }
 
 // Draw help functions
 
-void DrawShape(HDC hdc, HBRUSH hbrush, int shapeType, int x1, int y1, int x2, int y2)
+void DrawShape(HDC hdc, Color color, int shapeType, int x1, int y1, int x2, int y2)
 {
-	SelectObject(hdc, hbrush);
+	Graphics graphics(hdc);
+
+	SolidBrush brush(color);
+	//SolidBrush brush(Color(255, 0, 0, 255));
+
+	int start_x, start_y;
+	int width, height;
+	if (x1 < x2)
+	{
+		start_x = x1;
+		width = x2 - x1;
+	}
+	else
+	{
+		start_x = x2;
+		width = x1 - x2;
+	}
+	if (y1 < y2)
+	{
+		start_y = y1;
+		height = y2 - y1;
+	}
+	else
+	{
+		start_y = y2;
+		height = y1 - y2;
+	}
+
+
 	if (shapeType == Shape::RECTANGLE)
 	{
-		Rectangle(hdc, x1, y1, x2, y2);
+		RectF rect(start_x, start_y, width, height);
+		graphics.FillRectangle(&brush, rect);
 	}
 	else if (shapeType == Shape::CIRCLE)
 	{
-		Ellipse(hdc, x1, y1, x2, y2);
+		RectF ellipseRect(start_x, start_y, width, height);
+		graphics.FillEllipse(&brush, ellipseRect);
 	}
 }
 
@@ -191,14 +230,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		// All painting occurs here, between BeginPaint and EndPaint.
 
 		FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
-
+		
 		for (int i = 0; i < shapes.size(); i++)
 		{
 			Shape shape = *shapes[i];
-			DrawShape(hdc, brush, shape.shapeType, shape.x1, shape.y1, shape.x2, shape.y2);
+			DrawShape(hdc, shape.color, shape.shapeType, shape.x1, shape.y1, shape.x2, shape.y2);
 		}
 		if (currentShape != nullptr)
-			DrawShape(hdc, brush, currentShape->shapeType, currentShape->x1, currentShape->y1, currentShape->x2, currentShape->y2);
+			DrawShape(hdc, currentShape->color, currentShape->shapeType, currentShape->x1, currentShape->y1, currentShape->x2, currentShape->y2);
 
 		EndPaint(hwnd, &ps);
 	}

@@ -1,4 +1,7 @@
 #include <windows.h>
+#include <gdiplus.h>
+using namespace Gdiplus;
+#pragma comment (lib,"Gdiplus.lib")
 
 class Shape {
 public:
@@ -6,7 +9,7 @@ public:
 
 	int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
 	ShapeType shapeType = RECTANGLE;
-	COLORREF color = RGB(192, 0, 0);
+	Color color = Color(255, 0, 0, 255);
 
 	Shape() {}
 
