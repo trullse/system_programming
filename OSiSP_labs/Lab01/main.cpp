@@ -6,6 +6,7 @@
 #include <tchar.h>
 #include <vector>
 #include "resource.h"
+#include "shape.cpp"
 
 #pragma comment(linker,"\"/manifestdependency:type='win32' \
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
@@ -15,49 +16,7 @@ RECT rc = { 0 };
 int WindowPosX = 0;
 int WindowPosY = 0;
 
-int lastShapeId = 0;
-
-class Shape {
-public:
-	int shapeId;
-	int x1, y1, x2, y2;
-	int shapeType;	// 0 - rectangle, 1 - circle
-	COLORREF color;
-
-	Shape() {}
-
-	Shape(int _shapeType)
-	{
-		shapeId = ++lastShapeId;
-		shapeType = _shapeType;
-	}
-
-	void checkCoord()
-	{
-		if (this->x1 > this->x2)
-		{
-			int buff = this->x1;
-			this->x1 = this->x2;
-			this->x2 = buff;
-		}
-		if (this->y1 > this->y2)
-		{
-			int buff = this->y1;
-			this->y1 = this->y2;
-			this->y2 = buff;
-		}
-	}
-
-	void moveFigure(int dx, int dy)
-	{
-		x1 += dx;
-		x2 += dx;
-		y1 += dy;
-		y2 += dy;
-	}
-};
-
-int choosenShapeType = 0;
+Shape::ShapeType choosenShapeType = Shape::RECTANGLE;
 std::vector<Shape*> shapes;
 Shape* currentShape = nullptr;
 bool isDrawing = false; // while LMB clicked
@@ -265,10 +224,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			PostMessage(hwnd, WM_DESTROY, 0, 0);
 		else if (wParam == VK_SPACE)
 		{
-			if (choosenShapeType == 0)
-				choosenShapeType = 1;
+			if (choosenShapeType == Shape::RECTANGLE)
+				choosenShapeType = Shape::CIRCLE;
 			else
-				choosenShapeType = 0;
+				choosenShapeType = Shape::RECTANGLE;
 		}
 		else if (wParam == VK_SHIFT)
 		{
