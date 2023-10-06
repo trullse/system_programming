@@ -29,22 +29,6 @@ int deltaWay = 20;
 HBRUSH brush = CreateSolidBrush(RGB(192, 0, 0));
 HBRUSH original = CreateSolidBrush(RGB(192, 50, 0));
 
-void DrawShape(HDC hdc, int shapeType, int x1, int y1, int x2, int y2)
-{
-	if (shapeType == 0)
-	{
-		SelectObject(hdc, brush);
-		Rectangle(hdc, x1, y1, x2, y2);
-	}
-	else
-	{
-		SelectObject(hdc, original);
-		HBRUSH brush = CreateSolidBrush(RGB(192, 192, 192));
-		HBRUSH original = (HBRUSH)SelectObject(hdc, brush);
-		Ellipse(hdc, x1, y1, x2, y2);
-	}
-}
-
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
@@ -100,6 +84,96 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	return 0;
 }
 
+// Draw help functions
+
+void DrawShape(HDC hdc, HBRUSH hbrush, int shapeType, int x1, int y1, int x2, int y2)
+{
+	SelectObject(hdc, hbrush);
+	if (shapeType == Shape::RECTANGLE)
+	{
+		Rectangle(hdc, x1, y1, x2, y2);
+	}
+	else if (shapeType == Shape::CIRCLE)
+	{
+		Ellipse(hdc, x1, y1, x2, y2);
+	}
+}
+
+void StartDraw(LPARAM lParam)
+{
+	isDrawing = true;
+	currentShape = new Shape(choosenShapeType);
+	currentShape->x1 = currentShape->x2 = LOWORD(lParam);
+	currentShape->y1 = currentShape->y2 = HIWORD(lParam);
+}
+
+void SelectShape(LPARAM lParam)
+{
+	for (int i = shapes.size() - 1; i >= 0; i--)
+	{
+		Shape shape = *shapes[i];
+		int x = LOWORD(lParam);
+		int y = HIWORD(lParam);
+		if (shape.x1 <= x && shape.x2 >= x && shape.y1 <= y && shape.y2 >= y)
+		{
+			selectedShapeIndex = i;
+			break;
+		}
+	}
+}
+
+void SelectCorner(LPARAM lParam)
+{
+	Shape shape = *shapes[selectedShapeIndex];
+	int x1 = shape.x1;
+	int y1 = shape.y1;
+	int x2 = shape.x2;
+	int y2 = shape.y2;
+	int x = LOWORD(lParam);
+	int y = HIWORD(lParam);
+	double lt_corner_way = sqrt(pow((x1 - x), 2) + pow((y1 - y), 2));
+	double rd_corner_way = sqrt(pow((x2 - x), 2) + pow((y2 - y), 2));
+	isCornerSelected = true;
+	if (lt_corner_way < rd_corner_way)
+		isLtCornerSelected = true;
+	else
+		isLtCornerSelected = false;
+}
+
+void ChangeCorner(LPARAM lParam, HWND hwnd)
+{
+	if (isLtCornerSelected)
+	{
+		shapes[selectedShapeIndex]->x1 = LOWORD(lParam);
+		shapes[selectedShapeIndex]->y1 = HIWORD(lParam);
+	}
+	else
+	{
+		shapes[selectedShapeIndex]->x2 = LOWORD(lParam);
+		shapes[selectedShapeIndex]->y2 = HIWORD(lParam);
+	}
+	shapes[selectedShapeIndex]->checkCoord();
+	isCornerSelected = false;
+	selectedShapeIndex = -1;
+	InvalidateRect(hwnd, NULL, TRUE);
+}
+
+void ShapeDrawingCoord(LPARAM lParam, HWND hwnd)
+{
+	currentShape->x2 = LOWORD(lParam);
+	currentShape->y2 = HIWORD(lParam);
+	InvalidateRect(hwnd, NULL, TRUE);
+}
+
+void EndDrawing()
+{
+	isDrawing = false;
+	currentShape->checkCoord();
+	shapes.push_back(currentShape);
+}
+
+// Procedure
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)
@@ -121,10 +195,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		for (int i = 0; i < shapes.size(); i++)
 		{
 			Shape shape = *shapes[i];
-			DrawShape(hdc, shape.shapeType, shape.x1, shape.y1, shape.x2, shape.y2);
+			DrawShape(hdc, brush, shape.shapeType, shape.x1, shape.y1, shape.x2, shape.y2);
 		}
 		if (currentShape != nullptr)
-			DrawShape(hdc, currentShape->shapeType, currentShape->x1, currentShape->y1, currentShape->x2, currentShape->y2);
+			DrawShape(hdc, brush, currentShape->shapeType, currentShape->x1, currentShape->y1, currentShape->x2, currentShape->y2);
 
 		EndPaint(hwnd, &ps);
 	}
@@ -133,79 +207,36 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	case WM_LBUTTONDOWN:
 		if (!isEditing)
 		{
-			isDrawing = true;
-			currentShape = new Shape(choosenShapeType);
-			currentShape->x1 = currentShape->x2 = LOWORD(lParam);
-			currentShape->y1 = currentShape->y2 = HIWORD(lParam);
+			StartDraw(lParam);
 		}
 		else if (isEditing && !isCornerSelected)
 		{
 			if (selectedShapeIndex == -1)
 			{
-				for (int i = shapes.size() - 1; i >= 0; i--)
-				{
-					Shape shape = *shapes[i];
-					int x = LOWORD(lParam);
-					int y = HIWORD(lParam);
-					if (shape.x1 <= x && shape.x2 >= x && shape.y1 <= y && shape.y2 >= y)
-					{
-						selectedShapeIndex = i;
-						break;
-					}
-				}
+				SelectShape(lParam);
 			}
 			else
 			{
-				Shape shape = *shapes[selectedShapeIndex];
-				int x1 = shape.x1;
-				int y1 = shape.y1;
-				int x2 = shape.x2;
-				int y2 = shape.y2;
-				int x = LOWORD(lParam);
-				int y = HIWORD(lParam);
-				double lt_corner_way = sqrt(pow((x1 - x), 2) + pow((y1 - y), 2));
-				double rd_corner_way = sqrt(pow((x2 - x), 2) + pow((y2 - y), 2));
-				isCornerSelected = true;
-				if (lt_corner_way < rd_corner_way)
-					isLtCornerSelected = true;
-				else
-					isLtCornerSelected = false;
+				SelectCorner(lParam);
 			}
 		}
 		else // corner selected
 		{
-			if (isLtCornerSelected)
-			{
-				shapes[selectedShapeIndex]->x1 = LOWORD(lParam);
-				shapes[selectedShapeIndex]->y1 = HIWORD(lParam);
-			}
-			else
-			{
-				shapes[selectedShapeIndex]->x2 = LOWORD(lParam);
-				shapes[selectedShapeIndex]->y2 = HIWORD(lParam);
-			}
-			shapes[selectedShapeIndex]->checkCoord();
-			isCornerSelected = false;
-			selectedShapeIndex = -1;
-			InvalidateRect(hwnd, NULL, TRUE);
+			ChangeCorner(lParam, hwnd);
 		}
 		break;
 
 	case WM_MOUSEMOVE:
 		if (isDrawing)
 		{
-			currentShape->x2 = LOWORD(lParam);
-			currentShape->y2 = HIWORD(lParam);
-			InvalidateRect(hwnd, NULL, TRUE);
+			ShapeDrawingCoord(lParam, hwnd);
 		}
 		break;
 
 	case WM_LBUTTONUP:
 		if (isDrawing)
 		{
-			isDrawing = false;
-			currentShape->checkCoord();
-			shapes.push_back(currentShape);
+			EndDrawing();
 		}
 
 	case WM_SIZE:

@@ -4,9 +4,9 @@ class Shape {
 public:
 	enum ShapeType { RECTANGLE, CIRCLE, };
 
-	int x1, y1, x2, y2;
-	ShapeType shapeType;	// 0 - rectangle, 1 - circle
-	COLORREF color;
+	int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
+	ShapeType shapeType = RECTANGLE;
+	COLORREF color = RGB(192, 0, 0);
 
 	Shape() {}
 
