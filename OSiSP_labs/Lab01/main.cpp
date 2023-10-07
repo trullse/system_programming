@@ -2,6 +2,8 @@
 #define UNICODE
 #endif 
 
+#define ID_BUTTON 1001
+
 #include <windows.h>
 #include <tchar.h>
 #include <vector>
@@ -19,11 +21,20 @@ RECT rc = { 0 };
 int WindowPosX = 0;
 int WindowPosY = 0;
 
+HWND hwndChild;
+
 HDC hdc;
 HDC hdcBuffer;
 HBITMAP hBitmap;
 HGDIOBJ oldBitmap;
 Graphics* graphics;
+
+int toolsWidth = 150;
+int margin = 10;
+int drawWindowX = toolsWidth;
+int drawWindowY = margin;
+int drawWindowWidth;
+int drawWindowHeight;
 
 Shape::ShapeType choosenShapeType = Shape::RECTANGLE;
 std::vector<Shape*> shapes;
@@ -35,7 +46,8 @@ int selectedShapeIndex = -1;
 bool isCornerSelected = false;
 bool isLtCornerSelected = false;
 int deltaWay = 20;
-Pen blackPen(Color(255, 0, 0, 0), 3);
+COLORREF dColors[16];
+COLORREF currentColor = RGB(255, 0, 0);
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -107,13 +119,29 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		return 0;
 	}
 
-	HWND hwndChild = CreateWindowEx(0, L"DrawWindowClass", L"Дочернее Окно", WS_CHILD | WS_VISIBLE | WS_BORDER,
-		10, 10, 400, 300, hwnd, (HMENU)NULL, hInstance, NULL);
+	RECT clientRect;
+	GetClientRect(hwnd, &clientRect);
+	drawWindowHeight = clientRect.bottom - clientRect.top - 2 * margin;
+	drawWindowWidth = clientRect.right - clientRect.left - toolsWidth - margin;
 
-	if (hwndChild == NULL) {
-		// Обработка ошибки создания дочернего окна
+	hwndChild = CreateWindowEx(0, L"DrawWindowClass", L"Дочернее Окно", WS_CHILD | WS_VISIBLE | WS_BORDER,
+		drawWindowX, drawWindowY, drawWindowWidth, drawWindowHeight, hwnd, (HMENU)NULL, hInstance, NULL);
+
+	if (hwndChild == NULL) 
+	{
+		return 0;
 	}
 
+	HWND hwndButton = CreateWindow(
+		L"BUTTON",             // Имя класса для кнопки
+		L"Choose color",  // Текст на кнопке
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Стили кнопки
+		margin, margin, toolsWidth - 2 * margin, 30,       // Позиция и размеры кнопки
+		hwnd,                  // Родительское окно
+		(HMENU)ID_BUTTON,      // Идентификатор кнопки
+		hInstance,             // Дескриптор экземпляра приложения
+		NULL                   // Дополнительные параметры
+	);
 
 	ShowWindow(hwnd, nCmdShow);
 
@@ -180,6 +208,7 @@ void StartDraw(LPARAM lParam)
 	currentShape = new Shape(choosenShapeType);
 	currentShape->x1 = currentShape->x2 = LOWORD(lParam);
 	currentShape->y1 = currentShape->y2 = HIWORD(lParam);
+	currentShape->color = Color(GetRValue(currentColor), GetGValue(currentColor), GetBValue(currentColor));
 }
 
 void SelectShape(LPARAM lParam)
@@ -245,6 +274,27 @@ void EndDrawing()
 	isDrawing = false;
 	currentShape->checkCoord();
 	shapes.push_back(currentShape);
+	currentShape = nullptr;
+}
+
+// Color picker
+
+void OpenColorPicker(HWND hwnd) {
+	CHOOSECOLOR cc;
+	COLORREF acrCustColors[16]; // Массив для пользовательских цветов
+
+	ZeroMemory(&cc, sizeof(cc));
+	cc.lStructSize = sizeof(cc);
+	cc.hwndOwner = hwnd; // Родительское окно для диалогового окна выбора цвета
+	cc.lpCustColors = (LPDWORD)acrCustColors;
+	cc.rgbResult = RGB(255, 0, 0); // Начальный выбранный цвет
+	cc.Flags = CC_FULLOPEN | CC_RGBINIT; // Разрешает полный выбор цвета и инициализацию RGB
+
+	if (ChooseColor(&cc) == TRUE) {
+		currentColor = cc.rgbResult;
+		if (currentShape != nullptr)
+			currentShape->color = Color(GetRValue(currentColor), GetGValue(currentColor), GetBValue(currentColor));
+	}
 }
 
 // Procedure
@@ -253,14 +303,37 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)
 	{
+	case WM_COMMAND:
+		if (LOWORD(wParam) == ID_BUTTON) { // ID_BUTTON - это идентификатор вашей кнопки
+			OpenColorPicker(hwnd);
+		}
+		break;
+
 	case WM_DESTROY:
 		shapes.clear();
 		PostQuitMessage(0);
 		return 0;
 
+	case WM_PAINT:
+	{
+		PAINTSTRUCT ps;
+		hdc = BeginPaint(hwnd, &ps);
+
+		// All painting occurs here, between BeginPaint and EndPaint.
+
+		FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
+
+		EndPaint(hwnd, &ps);
+	}
+
 	case WM_SIZE:
 		rc.right = LOWORD(lParam);
 		rc.bottom = HIWORD(lParam);
+		RECT clientRect;
+		GetClientRect(hwnd, &clientRect);
+		drawWindowHeight = clientRect.bottom - clientRect.top - 2 * margin;
+		drawWindowWidth = clientRect.right - clientRect.left - toolsWidth - margin;
+		SetWindowPos(hwndChild, NULL, drawWindowX, drawWindowY, drawWindowWidth, drawWindowHeight, SWP_NOZORDER);
 		break;
 
 	case WM_MOVE:
@@ -394,6 +467,13 @@ LRESULT CALLBACK DrawWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 		{
 			EndDrawing();
 		}
+	case WM_SIZE:
+		rc.right = LOWORD(lParam);
+		rc.bottom = HIWORD(lParam);
+		GetClientRect(hwnd, &clientRect);
+		drawWindowHeight = clientRect.bottom - clientRect.top - 2 * margin;
+		drawWindowWidth = clientRect.right - clientRect.left - toolsWidth - margin;
+		break;
 	}
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
