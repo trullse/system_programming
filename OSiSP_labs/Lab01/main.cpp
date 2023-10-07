@@ -23,6 +23,7 @@ HDC hdc;
 HDC hdcBuffer;
 HBITMAP hBitmap;
 HGDIOBJ oldBitmap;
+Graphics* graphics;
 
 Shape::ShapeType choosenShapeType = Shape::RECTANGLE;
 std::vector<Shape*> shapes;
@@ -37,6 +38,20 @@ int deltaWay = 20;
 Pen blackPen(Color(255, 0, 0, 0), 3);
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+// buffer functions
+
+void CreateBuffer(int width, int height) {
+	hdcBuffer = CreateCompatibleDC(NULL);
+	hBitmap = CreateCompatibleBitmap(hdcBuffer, width, height);
+	oldBitmap = SelectObject(hdcBuffer, hBitmap);
+}
+
+void DeleteBuffer() {
+	SelectObject(hdcBuffer, oldBitmap);
+	DeleteObject(hBitmap);
+	DeleteDC(hdcBuffer);
+}
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
@@ -93,23 +108,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		DispatchMessage(&msg);
 	}
 
+	DeleteBuffer();
 	GdiplusShutdown(gdiplusToken);
 
 	return 0;
-}
-
-// buffer functions
-
-void CreateBuffer(int width, int height) {
-	hdcBuffer = CreateCompatibleDC(NULL);
-	hBitmap = CreateCompatibleBitmap(hdcBuffer, width, height);
-	oldBitmap = SelectObject(hdcBuffer, hBitmap);
-}
-
-void DeleteBuffer() {
-	SelectObject(hdcBuffer, oldBitmap);
-	DeleteObject(hBitmap);
-	DeleteDC(hdcBuffer);
 }
 
 // Draw help functions
@@ -234,6 +236,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)
 	{
+	case WM_CREATE:
+		hdc = GetDC(hwnd);
+		RECT clientRect;
+		GetClientRect(hwnd, &clientRect);
+		hdcBuffer = CreateCompatibleDC(hdc);
+		hBitmap = CreateCompatibleBitmap(hdc, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top);
+		SelectObject(hdcBuffer, hBitmap);
+		graphics = Graphics::FromHDC(hdcBuffer);
+		break;
+
 	case WM_DESTROY:
 		shapes.clear();
 		PostQuitMessage(0);
@@ -242,27 +254,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	case WM_PAINT:
 	{
 		PAINTSTRUCT ps;
-		HDC hdc = BeginPaint(hwnd, &ps);
+		hdc = BeginPaint(hwnd, &ps);
 
 		// All painting occurs here, between BeginPaint and EndPaint.
-
-		CreateBuffer(ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top);
-
-		Graphics graphics(hdcBuffer);
 
 		FillRect(hdcBuffer, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
 		
 		for (int i = 0; i < shapes.size(); i++)
 		{
 			Shape shape = *shapes[i];
-			DrawShape(&graphics, shape.color, shape.shapeType, shape.x1, shape.y1, shape.x2, shape.y2);
+			DrawShape(graphics, shape.color, shape.shapeType, shape.x1, shape.y1, shape.x2, shape.y2);
 		}
 		if (currentShape != nullptr)
-			DrawShape(&graphics, currentShape->color, currentShape->shapeType, currentShape->x1, currentShape->y1, currentShape->x2, currentShape->y2);
+			DrawShape(graphics, currentShape->color, currentShape->shapeType, currentShape->x1, currentShape->y1, currentShape->x2, currentShape->y2);
 
 		BitBlt(hdc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top, hdcBuffer, 0, 0, SRCCOPY);
-
-		DeleteBuffer();
 
 		EndPaint(hwnd, &ps);
 	}
