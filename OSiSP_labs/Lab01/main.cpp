@@ -39,6 +39,8 @@ Pen blackPen(Color(255, 0, 0, 0), 3);
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+LRESULT CALLBACK DrawWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
 // buffer functions
 
 void CreateBuffer(int width, int height) {
@@ -75,6 +77,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	RegisterClass(&wc);
 
+	WNDCLASS DrawWndClass = { 0 };
+	DrawWndClass.lpfnWndProc = DrawWindowProc;
+	DrawWndClass.hInstance = hInstance;
+	DrawWndClass.lpszClassName = L"DrawWindowClass";
+
+	RegisterClass(&DrawWndClass);
+
+
 	// Create the window.
 
 	HWND hwnd = CreateWindowEx(
@@ -96,6 +106,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	{
 		return 0;
 	}
+
+	HWND hwndChild = CreateWindowEx(0, L"DrawWindowClass", L"Дочернее Окно", WS_CHILD | WS_VISIBLE | WS_BORDER,
+		10, 10, 400, 300, hwnd, (HMENU)NULL, hInstance, NULL);
+
+	if (hwndChild == NULL) {
+		// Обработка ошибки создания дочернего окна
+	}
+
 
 	ShowWindow(hwnd, nCmdShow);
 
@@ -235,78 +253,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)
 	{
-	case WM_CREATE:
-		hdc = GetDC(hwnd);
-		RECT clientRect;
-		GetClientRect(hwnd, &clientRect);
-		hdcBuffer = CreateCompatibleDC(hdc);
-		hBitmap = CreateCompatibleBitmap(hdc, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top);
-		SelectObject(hdcBuffer, hBitmap);
-		graphics = Graphics::FromHDC(hdcBuffer);
-		break;
-
 	case WM_DESTROY:
 		shapes.clear();
 		PostQuitMessage(0);
 		return 0;
-
-	case WM_PAINT:
-	{
-		PAINTSTRUCT ps;
-		hdc = BeginPaint(hwnd, &ps);
-
-		// All painting occurs here, between BeginPaint and EndPaint.
-
-		FillRect(hdcBuffer, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
-		
-		for (int i = 0; i < shapes.size(); i++)
-		{
-			Shape shape = *shapes[i];
-			DrawShape(graphics, shape.color, shape.shapeType, shape.x1, shape.y1, shape.x2, shape.y2);
-		}
-		if (currentShape != nullptr)
-			DrawShape(graphics, currentShape->color, currentShape->shapeType, currentShape->x1, currentShape->y1, currentShape->x2, currentShape->y2);
-
-		BitBlt(hdc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top, hdcBuffer, 0, 0, SRCCOPY);
-
-		EndPaint(hwnd, &ps);
-	}
-	return 0;
-
-	case WM_LBUTTONDOWN:
-		if (!isEditing)
-		{
-			StartDraw(lParam);
-		}
-		else if (isEditing && !isCornerSelected)
-		{
-			if (selectedShapeIndex == -1)
-			{
-				SelectShape(lParam);
-			}
-			else
-			{
-				SelectCorner(lParam);
-			}
-		}
-		else // corner selected
-		{
-			ChangeCorner(lParam, hwnd);
-		}
-		break;
-
-	case WM_MOUSEMOVE:
-		if (isDrawing)
-		{
-			ShapeDrawingCoord(lParam, hwnd);
-		}
-		break;
-
-	case WM_LBUTTONUP:
-		if (isDrawing)
-		{
-			EndDrawing();
-		}
 
 	case WM_SIZE:
 		rc.right = LOWORD(lParam);
@@ -318,7 +268,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		WindowPosY = (int)(short)HIWORD(lParam);   // vertical position
 		InvalidateRect(hwnd, 0, TRUE);				// update window after moving
 		break;
-
 	case WM_KEYDOWN:
 		if (wParam == VK_ESCAPE)
 			PostMessage(hwnd, WM_DESTROY, 0, 0);
@@ -372,7 +321,79 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			InvalidateRect(hwnd, 0, TRUE);
 		}
 		break;
+	}
+	return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
 
+LRESULT CALLBACK DrawWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	switch (uMsg)
+	{
+	case WM_CREATE:
+		hdc = GetDC(hwnd);
+		RECT clientRect;
+		GetClientRect(hwnd, &clientRect);
+		hdcBuffer = CreateCompatibleDC(hdc);
+		hBitmap = CreateCompatibleBitmap(hdc, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top);
+		SelectObject(hdcBuffer, hBitmap);
+		graphics = Graphics::FromHDC(hdcBuffer);
+		break;
+	case WM_PAINT:
+	{
+		PAINTSTRUCT ps;
+		hdc = BeginPaint(hwnd, &ps);
+
+		// All painting occurs here, between BeginPaint and EndPaint.
+
+		FillRect(hdcBuffer, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
+
+		for (int i = 0; i < shapes.size(); i++)
+		{
+			Shape shape = *shapes[i];
+			DrawShape(graphics, shape.color, shape.shapeType, shape.x1, shape.y1, shape.x2, shape.y2);
+		}
+		if (currentShape != nullptr)
+			DrawShape(graphics, currentShape->color, currentShape->shapeType, currentShape->x1, currentShape->y1, currentShape->x2, currentShape->y2);
+
+		BitBlt(hdc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top, hdcBuffer, 0, 0, SRCCOPY);
+
+		EndPaint(hwnd, &ps);
+	}
+	return 0;
+
+	case WM_LBUTTONDOWN:
+		if (!isEditing)
+		{
+			StartDraw(lParam);
+		}
+		else if (isEditing && !isCornerSelected)
+		{
+			if (selectedShapeIndex == -1)
+			{
+				SelectShape(lParam);
+			}
+			else
+			{
+				SelectCorner(lParam);
+			}
+		}
+		else // corner selected
+		{
+			ChangeCorner(lParam, hwnd);
+		}
+		break;
+
+	case WM_MOUSEMOVE:
+		if (isDrawing)
+		{
+			ShapeDrawingCoord(lParam, hwnd);
+		}
+		break;
+
+	case WM_LBUTTONUP:
+		if (isDrawing)
+		{
+			EndDrawing();
+		}
 	}
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
