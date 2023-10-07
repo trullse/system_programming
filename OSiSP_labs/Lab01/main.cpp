@@ -108,7 +108,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		DispatchMessage(&msg);
 	}
 
-	DeleteBuffer();
 	GdiplusShutdown(gdiplusToken);
 
 	return 0;
