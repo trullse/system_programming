@@ -19,6 +19,11 @@ RECT rc = { 0 };
 int WindowPosX = 0;
 int WindowPosY = 0;
 
+HDC hdc;
+HDC hdcBuffer;
+HBITMAP hBitmap;
+HGDIOBJ oldBitmap;
+
 Shape::ShapeType choosenShapeType = Shape::RECTANGLE;
 std::vector<Shape*> shapes;
 Shape* currentShape = nullptr;
@@ -93,12 +98,24 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	return 0;
 }
 
+// buffer functions
+
+void CreateBuffer(int width, int height) {
+	hdcBuffer = CreateCompatibleDC(NULL);
+	hBitmap = CreateCompatibleBitmap(hdcBuffer, width, height);
+	oldBitmap = SelectObject(hdcBuffer, hBitmap);
+}
+
+void DeleteBuffer() {
+	SelectObject(hdcBuffer, oldBitmap);
+	DeleteObject(hBitmap);
+	DeleteDC(hdcBuffer);
+}
+
 // Draw help functions
 
-void DrawShape(HDC hdc, Color color, int shapeType, int x1, int y1, int x2, int y2)
+void DrawShape(Graphics* graphics, Color color, int shapeType, int x1, int y1, int x2, int y2)
 {
-	Graphics graphics(hdc);
-
 	SolidBrush brush(color);
 	//SolidBrush brush(Color(255, 0, 0, 255));
 
@@ -129,12 +146,12 @@ void DrawShape(HDC hdc, Color color, int shapeType, int x1, int y1, int x2, int 
 	if (shapeType == Shape::RECTANGLE)
 	{
 		RectF rect(start_x, start_y, width, height);
-		graphics.FillRectangle(&brush, rect);
+		graphics->FillRectangle(&brush, rect);
 	}
 	else if (shapeType == Shape::CIRCLE)
 	{
 		RectF ellipseRect(start_x, start_y, width, height);
-		graphics.FillEllipse(&brush, ellipseRect);
+		graphics->FillEllipse(&brush, ellipseRect);
 	}
 }
 
@@ -229,15 +246,23 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		// All painting occurs here, between BeginPaint and EndPaint.
 
-		FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
+		CreateBuffer(ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top);
+
+		Graphics graphics(hdcBuffer);
+
+		FillRect(hdcBuffer, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
 		
 		for (int i = 0; i < shapes.size(); i++)
 		{
 			Shape shape = *shapes[i];
-			DrawShape(hdc, shape.color, shape.shapeType, shape.x1, shape.y1, shape.x2, shape.y2);
+			DrawShape(&graphics, shape.color, shape.shapeType, shape.x1, shape.y1, shape.x2, shape.y2);
 		}
 		if (currentShape != nullptr)
-			DrawShape(hdc, currentShape->color, currentShape->shapeType, currentShape->x1, currentShape->y1, currentShape->x2, currentShape->y2);
+			DrawShape(&graphics, currentShape->color, currentShape->shapeType, currentShape->x1, currentShape->y1, currentShape->x2, currentShape->y2);
+
+		BitBlt(hdc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top, hdcBuffer, 0, 0, SRCCOPY);
+
+		DeleteBuffer();
 
 		EndPaint(hwnd, &ps);
 	}
