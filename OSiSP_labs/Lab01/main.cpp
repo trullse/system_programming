@@ -11,6 +11,7 @@
 #include <vector>
 #include "resource.h"
 #include "shape.cpp"
+//#include "layers.cpp"
 #include <gdiplus.h>
 using namespace Gdiplus;
 #pragma comment (lib,"Gdiplus.lib")
@@ -43,18 +44,68 @@ int buttonHeight = 30;
 int listHeight = 150;
 
 Shape::ShapeType choosenShapeType = Shape::RECTANGLE;
-std::vector<Shape*> shapes;
 Shape* currentShape = nullptr;
 bool isDrawing = false; // while LMB clicked
 bool isEditing = false;
 // Editing staff
-int selectedShapeIndex = -1;
+Shape* selectedShape = nullptr;
 bool isCornerSelected = false;
 bool isLtCornerSelected = false;
 int deltaWay = 20;
 COLORREF dColors[16];
 COLORREF currentColor = RGB(255, 0, 0);
-int layersCount = 0;
+
+class Layers
+{
+private:
+	std::vector<std::vector<Shape*>*>* layers;
+	int layersCount = 0;
+	std::vector<Shape*>* currentLayer = nullptr;
+public:
+	Layers()
+	{
+		layers = new std::vector<std::vector<Shape*>*>;
+		addLayer();
+	}
+	int getLayersCount()
+	{
+		return layersCount;
+	}
+	std::vector<Shape*>* getCurrentLayer()
+	{
+		return currentLayer;
+	}
+	std::vector<Shape*>* addLayer()
+	{
+		layers->push_back(new std::vector<Shape*>);
+		currentLayer = (*layers)[layersCount++];
+		return currentLayer;
+	}
+	std::vector<Shape*>* operator[](int index)
+	{
+		return (*layers)[index];
+	}
+	std::vector<Shape*>* setCurrentLayer(int index)
+	{
+		if (getLayersCount() > index && index >= 0)
+			currentLayer = (*layers)[index];
+		return currentLayer;
+	}
+	~Layers()
+	{
+		for (int i = 0; i < layers->size(); i++)
+		{
+			for (int j = 0; j < layers[i].size(); j++)
+			{
+				delete(layers[i][j]);
+			}
+			layers[i].clear();
+		}
+		layers->clear();
+	}
+};
+
+Layers* layers;
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -220,14 +271,15 @@ void StartDraw(LPARAM lParam)
 
 void SelectShape(LPARAM lParam)
 {
-	for (int i = shapes.size() - 1; i >= 0; i--)
+	std::vector<Shape*>* currentLayer = layers->getCurrentLayer();
+	for (int i = currentLayer->size() - 1; i >= 0; i--)
 	{
-		Shape shape = *shapes[i];
+		Shape* shape = (*currentLayer)[i];
 		int x = LOWORD(lParam);
 		int y = HIWORD(lParam);
-		if (shape.x1 <= x && shape.x2 >= x && shape.y1 <= y && shape.y2 >= y)
+		if (shape->x1 <= x && shape->x2 >= x && shape->y1 <= y && shape->y2 >= y)
 		{
-			selectedShapeIndex = i;
+			selectedShape = shape;
 			break;
 		}
 	}
@@ -235,11 +287,10 @@ void SelectShape(LPARAM lParam)
 
 void SelectCorner(LPARAM lParam)
 {
-	Shape shape = *shapes[selectedShapeIndex];
-	int x1 = shape.x1;
-	int y1 = shape.y1;
-	int x2 = shape.x2;
-	int y2 = shape.y2;
+	int x1 = selectedShape->x1;
+	int y1 = selectedShape->y1;
+	int x2 = selectedShape->x2;
+	int y2 = selectedShape->y2;
 	int x = LOWORD(lParam);
 	int y = HIWORD(lParam);
 	double lt_corner_way = sqrt(pow((x1 - x), 2) + pow((y1 - y), 2));
@@ -255,17 +306,17 @@ void ChangeCorner(LPARAM lParam, HWND hwnd)
 {
 	if (isLtCornerSelected)
 	{
-		shapes[selectedShapeIndex]->x1 = LOWORD(lParam);
-		shapes[selectedShapeIndex]->y1 = HIWORD(lParam);
+		selectedShape->x1 = LOWORD(lParam);
+		selectedShape->y1 = HIWORD(lParam);
 	}
 	else
 	{
-		shapes[selectedShapeIndex]->x2 = LOWORD(lParam);
-		shapes[selectedShapeIndex]->y2 = HIWORD(lParam);
+		selectedShape->x2 = LOWORD(lParam);
+		selectedShape->y2 = HIWORD(lParam);
 	}
-	shapes[selectedShapeIndex]->checkCoord();
+	selectedShape->checkCoord();
 	isCornerSelected = false;
-	selectedShapeIndex = -1;
+	selectedShape = nullptr;
 	InvalidateRect(hwnd, NULL, TRUE);
 }
 
@@ -280,7 +331,7 @@ void EndDrawing()
 {
 	isDrawing = false;
 	currentShape->checkCoord();
-	shapes.push_back(currentShape);
+	layers->getCurrentLayer()->push_back(currentShape);
 	currentShape = nullptr;
 }
 
@@ -315,9 +366,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			OpenColorPicker(hwnd);
 		}
 		if (LOWORD(wParam) == ID_LAYER_BUTTON) {
+			layers->addLayer();
 			wchar_t layerText[20];
-			swprintf_s(layerText, sizeof(layerText) / sizeof(layerText[0]), L"Layer %d", ++layersCount);
+			swprintf_s(layerText, sizeof(layerText) / sizeof(layerText[0]), L"Layer %d", layers->getLayersCount());
 			SendMessage(hwndListBox, LB_ADDSTRING, 0, (LPARAM)layerText);
+		}
+		if (LOWORD(wParam) == ID_LISTBOX && HIWORD(wParam) == LBN_SELCHANGE) {
+			int selectedIndex = SendMessage(hwndListBox, LB_GETCURSEL, 0, 0);
+			layers->setCurrentLayer(selectedIndex);
+			selectedShape = nullptr;
+			isCornerSelected = false;
 		}
 		break;
 
@@ -326,8 +384,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			WS_VISIBLE | WS_CHILD | LBS_STANDARD,
 			margin, margin * 2 + buttonHeight, toolsWidth - 2 * margin, listHeight, hwnd, (HMENU)ID_LISTBOX, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
 
+		layers = new Layers();
 		SendMessage(hwndListBox, LB_ADDSTRING, 0, (LPARAM)L"Layer 1");
-		layersCount++;
+
 		SendMessage(hwndListBox, LB_SETCURSEL, 0, 0);
 
 		AddLayerButton = CreateWindow(
@@ -344,7 +403,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_DESTROY:
-		shapes.clear();
+		delete(layers);
+		delete(currentShape);
 		PostQuitMessage(0);
 		return 0;
 
@@ -391,40 +451,39 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			{
 				if (isDrawing)
 				{
-					isDrawing = false;
-					shapes.push_back(currentShape);
+					EndDrawing();
 				}
 				isEditing = true;
 			}
 			else
 			{
 				isEditing = false;
-				selectedShapeIndex = -1;
+				selectedShape = nullptr;
 				isCornerSelected = false;
 			}
 		}
 		else if (wParam == VK_LEFT)
 		{
-			if (isEditing && selectedShapeIndex != -1)
-				shapes[selectedShapeIndex]->moveFigure(-deltaWay, 0);
+			if (isEditing && selectedShape != nullptr)
+				selectedShape->moveFigure(-deltaWay, 0);
 			InvalidateRect(hwnd, 0, TRUE);
 		}
 		else if (wParam == VK_RIGHT)
 		{
-			if (isEditing && selectedShapeIndex != -1)
-				shapes[selectedShapeIndex]->moveFigure(deltaWay, 0);
+			if (isEditing && selectedShape != nullptr)
+				selectedShape->moveFigure(deltaWay, 0);
 			InvalidateRect(hwnd, 0, TRUE);
 		}
 		else if (wParam == VK_UP)
 		{
-			if (isEditing && selectedShapeIndex != -1)
-				shapes[selectedShapeIndex]->moveFigure(0, -deltaWay);
+			if (isEditing && selectedShape != nullptr)
+				selectedShape->moveFigure(0, -deltaWay);
 			InvalidateRect(hwnd, 0, TRUE);
 		}
 		else if (wParam == VK_DOWN)
 		{
-			if (isEditing && selectedShapeIndex != -1)
-				shapes[selectedShapeIndex]->moveFigure(0, deltaWay);
+			if (isEditing && selectedShape != nullptr)
+				selectedShape->moveFigure(0, deltaWay);
 			InvalidateRect(hwnd, 0, TRUE);
 		}
 		break;
@@ -453,13 +512,18 @@ LRESULT CALLBACK DrawWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 
 		FillRect(hdcBuffer, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
 
-		for (int i = 0; i < shapes.size(); i++)
+		for (int i = 0; i < layers->getLayersCount(); i++)
 		{
-			Shape shape = *shapes[i];
-			DrawShape(graphics, shape.color, shape.shapeType, shape.x1, shape.y1, shape.x2, shape.y2);
+			for (int j = 0; j < (*layers)[i]->size(); j++)
+			{
+				Shape* shape = (*(*layers)[i])[j];
+				DrawShape(graphics, shape->color, shape->shapeType, shape->x1, shape->y1, shape->x2, shape->y2);
+			}
+			if (layers->getCurrentLayer() == (*layers)[i] && currentShape != nullptr)
+			{
+				DrawShape(graphics, currentShape->color, currentShape->shapeType, currentShape->x1, currentShape->y1, currentShape->x2, currentShape->y2);
+			}
 		}
-		if (currentShape != nullptr)
-			DrawShape(graphics, currentShape->color, currentShape->shapeType, currentShape->x1, currentShape->y1, currentShape->x2, currentShape->y2);
 
 		BitBlt(hdc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top, hdcBuffer, 0, 0, SRCCOPY);
 
@@ -474,7 +538,7 @@ LRESULT CALLBACK DrawWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 		}
 		else if (isEditing && !isCornerSelected)
 		{
-			if (selectedShapeIndex == -1)
+			if (selectedShape == nullptr)
 			{
 				SelectShape(lParam);
 			}
