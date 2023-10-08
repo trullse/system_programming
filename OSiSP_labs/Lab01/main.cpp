@@ -3,6 +3,8 @@
 #endif 
 
 #define ID_BUTTON 1001
+#define ID_LISTBOX 1002
+#define ID_LAYER_BUTTON 1003
 
 #include <windows.h>
 #include <tchar.h>
@@ -22,6 +24,8 @@ int WindowPosX = 0;
 int WindowPosY = 0;
 
 HWND hwndChild;
+HWND hwndListBox;
+HWND AddLayerButton;
 
 HDC hdc;
 HDC hdcBuffer;
@@ -35,6 +39,8 @@ int drawWindowX = toolsWidth;
 int drawWindowY = margin;
 int drawWindowWidth;
 int drawWindowHeight;
+int buttonHeight = 30;
+int listHeight = 150;
 
 Shape::ShapeType choosenShapeType = Shape::RECTANGLE;
 std::vector<Shape*> shapes;
@@ -48,6 +54,7 @@ bool isLtCornerSelected = false;
 int deltaWay = 20;
 COLORREF dColors[16];
 COLORREF currentColor = RGB(255, 0, 0);
+int layersCount = 0;
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -136,7 +143,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		L"BUTTON",             // Имя класса для кнопки
 		L"Choose color",  // Текст на кнопке
 		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Стили кнопки
-		margin, margin, toolsWidth - 2 * margin, 30,       // Позиция и размеры кнопки
+		margin, margin, toolsWidth - 2 * margin, buttonHeight,       // Позиция и размеры кнопки
 		hwnd,                  // Родительское окно
 		(HMENU)ID_BUTTON,      // Идентификатор кнопки
 		hInstance,             // Дескриптор экземпляра приложения
@@ -307,6 +314,33 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		if (LOWORD(wParam) == ID_BUTTON) { // ID_BUTTON - это идентификатор вашей кнопки
 			OpenColorPicker(hwnd);
 		}
+		if (LOWORD(wParam) == ID_LAYER_BUTTON) {
+			wchar_t layerText[20];
+			swprintf_s(layerText, sizeof(layerText) / sizeof(layerText[0]), L"Layer %d", ++layersCount);
+			SendMessage(hwndListBox, LB_ADDSTRING, 0, (LPARAM)layerText);
+		}
+		break;
+
+	case WM_CREATE:
+		hwndListBox = CreateWindow(L"LISTBOX", L"",
+			WS_VISIBLE | WS_CHILD | LBS_STANDARD,
+			margin, margin * 2 + buttonHeight, toolsWidth - 2 * margin, listHeight, hwnd, (HMENU)ID_LISTBOX, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+		SendMessage(hwndListBox, LB_ADDSTRING, 0, (LPARAM)L"Layer 1");
+		layersCount++;
+		SendMessage(hwndListBox, LB_SETCURSEL, 0, 0);
+
+		AddLayerButton = CreateWindow(
+			L"BUTTON",             // Имя класса для кнопки
+			L"Add layer",  // Текст на кнопке
+			WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Стили кнопки
+			margin, margin * 3 + buttonHeight + listHeight, toolsWidth - 2 * margin, buttonHeight,       // Позиция и размеры кнопки
+			hwnd,                  // Родительское окно
+			(HMENU)ID_LAYER_BUTTON,      // Идентификатор кнопки
+			(HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE),             // Дескриптор экземпляра приложения
+			NULL                   // Дополнительные параметры
+		);
+
 		break;
 
 	case WM_DESTROY:
