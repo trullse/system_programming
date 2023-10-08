@@ -364,18 +364,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	case WM_COMMAND:
 		if (LOWORD(wParam) == ID_BUTTON) { // ID_BUTTON - это идентификатор вашей кнопки
 			OpenColorPicker(hwnd);
+			SetFocus(hwndChild);
 		}
 		if (LOWORD(wParam) == ID_LAYER_BUTTON) {
 			layers->addLayer();
 			wchar_t layerText[20];
 			swprintf_s(layerText, sizeof(layerText) / sizeof(layerText[0]), L"Layer %d", layers->getLayersCount());
 			SendMessage(hwndListBox, LB_ADDSTRING, 0, (LPARAM)layerText);
+			SetFocus(hwndChild);
 		}
 		if (LOWORD(wParam) == ID_LISTBOX && HIWORD(wParam) == LBN_SELCHANGE) {
 			int selectedIndex = SendMessage(hwndListBox, LB_GETCURSEL, 0, 0);
 			layers->setCurrentLayer(selectedIndex);
 			selectedShape = nullptr;
 			isCornerSelected = false;
+			SetFocus(hwndChild);
 		}
 		break;
 
@@ -435,58 +438,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		WindowPosY = (int)(short)HIWORD(lParam);   // vertical position
 		InvalidateRect(hwnd, 0, TRUE);				// update window after moving
 		break;
-	case WM_KEYDOWN:
-		if (wParam == VK_ESCAPE)
-			PostMessage(hwnd, WM_DESTROY, 0, 0);
-		else if (wParam == VK_SPACE)
-		{
-			if (choosenShapeType == Shape::RECTANGLE)
-				choosenShapeType = Shape::CIRCLE;
-			else
-				choosenShapeType = Shape::RECTANGLE;
-		}
-		else if (wParam == VK_SHIFT)
-		{
-			if (!isEditing)
-			{
-				if (isDrawing)
-				{
-					EndDrawing();
-				}
-				isEditing = true;
-			}
-			else
-			{
-				isEditing = false;
-				selectedShape = nullptr;
-				isCornerSelected = false;
-			}
-		}
-		else if (wParam == VK_LEFT)
-		{
-			if (isEditing && selectedShape != nullptr)
-				selectedShape->moveFigure(-deltaWay, 0);
-			InvalidateRect(hwnd, 0, TRUE);
-		}
-		else if (wParam == VK_RIGHT)
-		{
-			if (isEditing && selectedShape != nullptr)
-				selectedShape->moveFigure(deltaWay, 0);
-			InvalidateRect(hwnd, 0, TRUE);
-		}
-		else if (wParam == VK_UP)
-		{
-			if (isEditing && selectedShape != nullptr)
-				selectedShape->moveFigure(0, -deltaWay);
-			InvalidateRect(hwnd, 0, TRUE);
-		}
-		else if (wParam == VK_DOWN)
-		{
-			if (isEditing && selectedShape != nullptr)
-				selectedShape->moveFigure(0, deltaWay);
-			InvalidateRect(hwnd, 0, TRUE);
-		}
-		break;
+	
 	}
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
@@ -551,6 +503,7 @@ LRESULT CALLBACK DrawWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 		{
 			ChangeCorner(lParam, hwnd);
 		}
+		SetFocus(hwndChild);
 		break;
 
 	case WM_MOUSEMOVE:
@@ -571,6 +524,59 @@ LRESULT CALLBACK DrawWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 		GetClientRect(hwnd, &clientRect);
 		drawWindowHeight = clientRect.bottom - clientRect.top - 2 * margin;
 		drawWindowWidth = clientRect.right - clientRect.left - toolsWidth - margin;
+		break;
+
+	case WM_KEYDOWN:
+		if (wParam == VK_ESCAPE)
+			PostMessage(hwnd, WM_DESTROY, 0, 0);
+		else if (wParam == VK_SPACE)
+		{
+			if (choosenShapeType == Shape::RECTANGLE)
+				choosenShapeType = Shape::CIRCLE;
+			else
+				choosenShapeType = Shape::RECTANGLE;
+		}
+		else if (wParam == VK_SHIFT)
+		{
+			if (!isEditing)
+			{
+				if (isDrawing)
+				{
+					EndDrawing();
+				}
+				isEditing = true;
+			}
+			else
+			{
+				isEditing = false;
+				selectedShape = nullptr;
+				isCornerSelected = false;
+			}
+		}
+		else if (wParam == VK_LEFT)
+		{
+			if (isEditing && selectedShape != nullptr)
+				selectedShape->moveFigure(-deltaWay, 0);
+			InvalidateRect(hwnd, 0, TRUE);
+		}
+		else if (wParam == VK_RIGHT)
+		{
+			if (isEditing && selectedShape != nullptr)
+				selectedShape->moveFigure(deltaWay, 0);
+			InvalidateRect(hwnd, 0, TRUE);
+		}
+		else if (wParam == VK_UP)
+		{
+			if (isEditing && selectedShape != nullptr)
+				selectedShape->moveFigure(0, -deltaWay);
+			InvalidateRect(hwnd, 0, TRUE);
+		}
+		else if (wParam == VK_DOWN)
+		{
+			if (isEditing && selectedShape != nullptr)
+				selectedShape->moveFigure(0, deltaWay);
+			InvalidateRect(hwnd, 0, TRUE);
+		}
 		break;
 	}
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
