@@ -367,10 +367,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			SetFocus(hwndChild);
 		}
 		if (LOWORD(wParam) == ID_LAYER_BUTTON) {
-			layers->addLayer();
-			wchar_t layerText[20];
-			swprintf_s(layerText, sizeof(layerText) / sizeof(layerText[0]), L"Layer %d", layers->getLayersCount());
-			SendMessage(hwndListBox, LB_ADDSTRING, 0, (LPARAM)layerText);
+			if (layers->getLayersCount() < 9)
+			{
+				layers->addLayer();
+				wchar_t layerText[20];
+				swprintf_s(layerText, sizeof(layerText) / sizeof(layerText[0]), L"Layer %d", layers->getLayersCount());
+				SendMessage(hwndListBox, LB_ADDSTRING, 0, (LPARAM)layerText);
+			}
 			SetFocus(hwndChild);
 		}
 		if (LOWORD(wParam) == ID_LISTBOX && HIWORD(wParam) == LBN_SELCHANGE) {
