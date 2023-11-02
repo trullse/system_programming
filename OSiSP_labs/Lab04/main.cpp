@@ -1,6 +1,5 @@
 #include <windows.h>
 #include <vector>
-#include <mutex>
 
 std::vector<int> cpuUsageHistory;
 std::vector<int> memoryUsageHistory;
@@ -19,16 +18,10 @@ HWND hProcessor;
 HWND hMemory;
 int startSpace = 200;
 
+const int maxHistorySize = 100;
 
-DWORD UpdatePerformanceData(LPVOID lpParam) {
+DWORD UpdateMemoryData(LPVOID lpParam) {
     while (!isStopped) {
-
-        int cpuUsage = GetCPULoad() * 100;
-
-        TCHAR buffer[256];
-        wsprintf(buffer, L"Cpu usage is %d o/o", cpuUsage);
-        SetWindowText(hProcessor, buffer);
-
         MEMORYSTATUSEX memoryStatus;
         memoryStatus.dwLength = sizeof(memoryStatus);
         GlobalMemoryStatusEx(&memoryStatus);
@@ -41,16 +34,32 @@ DWORD UpdatePerformanceData(LPVOID lpParam) {
         wsprintf(buffer2, L"Memory usage is %d o/o", memoryUsage);
         SetWindowText(hMemory, buffer2);
 
-        const int maxHistorySize = 100;
-        if (cpuUsageHistory.size() >= maxHistorySize) {
-            cpuUsageHistory.erase(cpuUsageHistory.begin());
-        }
         if (memoryUsageHistory.size() >= maxHistorySize) {
             memoryUsageHistory.erase(memoryUsageHistory.begin());
         }
 
-        cpuUsageHistory.push_back(cpuUsage);
         memoryUsageHistory.push_back(memoryUsage);
+
+        Sleep(1000);
+    }
+    ExitThread(0);
+    return 1;
+}
+
+DWORD UpdatePerformanceData(LPVOID lpParam) {
+    while (!isStopped) {
+
+        int cpuUsage = GetCPULoad() * 100;
+
+        TCHAR buffer[256];
+        wsprintf(buffer, L"Cpu usage is %d o/o", cpuUsage);
+        SetWindowText(hProcessor, buffer);
+
+        if (cpuUsageHistory.size() >= maxHistorySize) {
+            cpuUsageHistory.erase(cpuUsageHistory.begin());
+        }
+
+        cpuUsageHistory.push_back(cpuUsage);
 
         Sleep(1000);
     }
@@ -143,13 +152,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     ShowWindow(hwnd, nCmdShow);
 
-    CreateThread(
+    HANDLE cpuThread = CreateThread(
         NULL,                   // default security attributes
         0,                      // use default stack size  
         UpdatePerformanceData,       // thread function name
         NULL,          // argument to thread function 
         0,                      // use default creation flags 
         NULL);
+
+    HANDLE memoryThread = CreateThread(
+        NULL,                   // default security attributes
+        0,                      // use default stack size  
+        UpdateMemoryData,       // thread function name
+        NULL,          // argument to thread function 
+        0,                      // use default creation flags 
+        NULL);
+
+    SetThreadPriority(cpuThread, THREAD_PRIORITY_HIGHEST);
 
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0)) {
