@@ -24,7 +24,11 @@ void ChangeTotalChanges(LPCWSTR taskName) {
     case WAIT_OBJECT_0:
         __try {
             totalChanges++;
+            WaitForSingleObject(
+                outputMutex,    // handle to mutex
+                INFINITE);  // no time-out interval
             std::wcout << taskName << L": changed total changes to " << totalChanges << std::endl;
+            ReleaseMutex(outputMutex);
         }
 
         __finally {
@@ -72,8 +76,7 @@ void MonitorRegistryChanges(LPVOID lpParam) {
                     DWORD currentValueCount;
                     if (RegQueryInfoKey(hKey, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, &currentValueCount, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS) {
                         if (currentValueCount != lastValueCount) {
-                            DWORD waitResult;
-                            waitResult = WaitForSingleObject(
+                            WaitForSingleObject(
                                 outputMutex,    // handle to mutex
                                 INFINITE);  // no time-out interval
 
@@ -91,8 +94,7 @@ void MonitorRegistryChanges(LPVOID lpParam) {
             }
             else if (RegGetValue(hKey, subKey, valueName, RRF_RT_REG_SZ, NULL, data, &dataSize) == ERROR_SUCCESS) {
                 if (wcscmp(data, lastValue) != 0) {
-                    DWORD waitResult;
-                    waitResult = WaitForSingleObject(
+                    WaitForSingleObject(
                         outputMutex,    // handle to mutex
                         INFINITE);  // no time-out interval
 
